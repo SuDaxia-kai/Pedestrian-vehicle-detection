@@ -9,7 +9,7 @@ import torch.nn as nn
 class Mish(nn.Module):
     def __init__(self):
         super(Mish, self).__init__()
-        
+
     def forward(self, x):
         # F.softplus(x) = torch.log(1 + torch.exp(x))
         return x*torch.tanh(F.softplus(x))
@@ -49,10 +49,10 @@ class Resblock(nn.Module):
             BasicConv(channels, hidden_channels, 1),
             BasicConv(hidden_channels, channels, 3)
         )
-    
+
     def forward(self, x):
         return x + self.block(x)
-    
+
 
 #------------------------------------------------------------------------------------#
 #   CSPNetX模块
@@ -85,10 +85,12 @@ class Resblock_body(nn.Module):
         x = self.downsample_conv(x)
         x0 = self.split_conv0(x)
         x1 = self.split_conv1(x)
-        x1 = self.blocks_conv(x)
+        x1 = self.blocks_conv(x1)
         
         x = torch.cat([x1, x0], dim = 1)
         x = self.concat_conv(x)
+        
+        return x
     
 
 
