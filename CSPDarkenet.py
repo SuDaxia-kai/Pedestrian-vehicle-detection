@@ -1,6 +1,42 @@
+import math
+import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.nn as nn
+
+
+def load_model_pth(model, pth):
+    print('Loading weights into state dict, name: %s'%(pth))
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model_dict = model.state_dict()
+    pretrained_dict = torch.load(pth, map_location=device)
+    matched_dict = {}
+    for k, v in model_dict.items():
+        if k.find('backbone') == -1:
+            key = 'backbone.'+k
+        # else:
+        #     key = k
+        # print(key)
+        # print(pretrained_dict.keys())
+        # print(model_dict.keys())
+        # print('#######################################')
+        if np.shape(pretrained_dict[key]) == np.shape(v):
+            matched_dict[k] = v
+
+    # for k,v in pretrained_dict.items():
+    #     if np.shape(model_dict[k]) == np.shape(v):
+    #         matched_dict[k] = v
+    #     else:
+    #         print('un matched layers: %s'%k)
+    for key in matched_dict:
+        print('pretrained items:', key)
+    # print(len(model_dict.keys()), len(pretrained_dict.keys()))
+    print('%d layers matched,  %d layers miss'%(len(matched_dict.keys()), len(model_dict)-len(matched_dict.keys())))
+    model_dict.update(matched_dict)
+    model.load_state_dict(model_dict)
+    print('Finished!')
+    return model
+
 
 
 #-------------------------------------------------------#
@@ -24,7 +60,7 @@ class BasicConv(nn.Module):
         super(BasicConv, self).__init__()
         
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride, kernel_size//2, bias = False)
-        self.bh = nn.BatchNorm2d(out_channels)
+        self.bn = nn.BatchNorm2d(out_channels)
         self.activation = Mish()
         
     def forward(self, x):
@@ -92,7 +128,55 @@ class Resblock_body(nn.Module):
         
         return x
     
+#------------------------------------------------------------------------------------#
+#   CSPdarknet53的backbone构建
+#   存在一个大残差边
+#   这个大残差边绕过了很多的残差结构
+#   [1, 2, 8, 8, 4]
+#------------------------------------------------------------------------------------#
+class CSPDarkNet(nn.Module):
+    def __init__(self, layers):
+        super(CSPDarkNet, self).__init__()
+        self.inplanes = 32
+        self.conv1 = BasicConv(3, self.inplanes, kernel_size = 3, stride = 1)
+        self.feature_channels = [64, 128, 256, 512, 1024]
+        
+        self.stages = nn.ModuleList([
+            Resblock_body(self.inplanes, self.feature_channels[0], layers[0], first = True),
+            Resblock_body(self.feature_channels[0], self.feature_channels[1], layers[1], first = False),
+            Resblock_body(self.feature_channels[1], self.feature_channels[2], layers[2], first = False),
+            Resblock_body(self.feature_channels[2], self.feature_channels[3], layers[3], first = False),
+            Resblock_body(self.feature_channels[3], self.feature_channels[4], layers[4], first = False)
+        ])
+    
+        self.num_features = 1
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2./n))
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+                
+    def forward(self, x):
+        x = self.conv1()
+        x = self.stages[0](x)
+        x = self.stages[1](x)
+        out3 = self.stages[2](x)
+        out4 = self.stages[3](out3)
+        out5 = self.stages[4](out4)
+        
+        return out3, out4, out5
+    
+#------------------------------------------------------------------------------------#
+#   构建backbone+初始化预训练权重
+#   存在一个大残差边
+#   这个大残差边绕过了很多的残差结构
+#------------------------------------------------------------------------------------#
+def darknet53(pretrained):
+    model = CSPDarkNet([1, 2, 8, 8, 4])
+    load_model_pth(model, pretrained)
 
 
-
-
+if __name__ == '__main__':
+    backbone = darknet53('pth/yolo4_weights.pth')
