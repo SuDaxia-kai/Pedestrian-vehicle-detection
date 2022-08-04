@@ -48,7 +48,7 @@ class Mish(nn.Module):
 
     def forward(self, x):
         # F.softplus(x) = torch.log(1 + torch.exp(x))
-        return x*torch.tanh(F.softplus(x))
+        return x * torch.tanh(F.softplus(x))
     
     
 #-------------------------------------------------------#
@@ -65,7 +65,7 @@ class BasicConv(nn.Module):
         
     def forward(self, x):
         x = self.conv(x)
-        x = self.bh(x)
+        x = self.bn(x)
         x = self.activation(x)
         
         return x
@@ -114,8 +114,10 @@ class Resblock_body(nn.Module):
         
             self.blocks_conv = nn.Sequential(
                 *[Resblock(channels = out_channels//2) for _ in range(num_blocks)],
-                BasicConv(out_channels//2, out_channels, 1)
+                BasicConv(out_channels//2, out_channels//2, 1)
             )
+            
+            self.concat_conv = BasicConv(out_channels, out_channels, 1)
             
     def forward(self, x):
         x = self.downsample_conv(x)
