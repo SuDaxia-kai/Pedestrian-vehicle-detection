@@ -6,7 +6,7 @@ from CSPDarkenet import darknet53
 
 # CBL的构建
 def conv2d(filter_in, filter_out, kernel_size, stride = 1):
-    pad = (kernel_size - 1) // 2 if kernel_size else 0
+    pad = (kernel_size - 1) // 2 if kernel_size else 0    # 其实此处应该是可以用(kernel_size // 2来代替)
     return nn.Sequential(OrderedDict[
         ('conv', nn.Conv2d(filter_in, filter_out, kernel_size = kernel_size, stride = stride, padding = pad)),
         ('bn', nn.BatchNorm2d(filter_out)),
@@ -84,3 +84,4 @@ def yolo_head(filters_list, in_filters):
         nn.Conv2d(filters_list[0], filters_list[1], 1),
     )
     return m
+
